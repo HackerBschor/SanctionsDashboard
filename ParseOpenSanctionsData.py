@@ -183,7 +183,7 @@ def extract_ds_publisher():
 
 
 def create_subset():
-    sql = """--CREATE INDEX ON entities_datasets (schema);
+    sql = """/*CREATE INDEX ON entities_datasets (schema);*/
 CREATE TABLE entities_datasets_small AS
 SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Address' ORDER BY random() LIMIT 1000) a0 UNION ALL
 SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Airplane' ORDER BY random() LIMIT 1000) a1 UNION ALL
