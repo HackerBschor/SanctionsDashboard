@@ -1,43 +1,28 @@
-# Sanctions
+# Sanctions Dashboard
 
-## Open Sanctions
-The [OpenSanctions Default](https://www.opensanctions.org/datasets/default/) dataset contains the most data
-collected by open sanctions. 
+## Introduction
+In recent years, international sanctions have gained prominence due to events such as Russia's war against Ukraine and 
+the corresponding [sanctions on Russian oil](https://www.derstandard.at/story/2000143240237/neue-oel-sanktionen-der-eu-gegen-russland-in-kraft-getreten)
+as well as the ban of [Google services on Huawei devices](https://www.derstandard.at/story/2000103448324/huawei-verliert-android-lizenz-und-zugang-zum-play-store). 
 
+## Dataset
+We use the [OpenSanctions Default](https://www.opensanctions.org/datasets/default) dataset containing over three million different entries. 
+It is an aggregation of > 100 datasources created by sanctioning actors. 
+If a record is part of a datasource, it means it is sanctioned by this actor. 
+These datasources are published by countries, unions (e.g. the European Union / UN) or other institutions like NGOs or
+Interpol.
 
+The records are stored in the [FtM](https://followthemoney.tech) format containing the following fields: 
+* `id`: Unique Identifier
+* `caption`: Additional info on the sanctioned entry
+* `datasets`: The datasets in which this entry is listed. (Therefore, this contains the info by whom this record is sanctioned) 
+* `first_seen`, `last_seen`, `last_changed`: When this record appeared for the first-/ last-time or was changed in one of the datasets
+* `schema`: Describing the records' type and the structure of the properties (A schema can be a company, a natural person, a bank account, etc.)
+* `properties`: More detailed info on the record (A person has a nationality, address, ..., whereas a company has a national identification/ tax number)
 
-### Data Description
-We've downloaded the full dataset in the [FollowTheMoney](https://followthemoney.tech/) format on the 5th of october 2023. 
-It contains a set of directly or indirectly targeted entities, who are sanctions by different actors.
-Furthermore, we added the datasource information to the entity to find out by whom the entity is sanctions, 
-because the original dataset only contains the datasource name with no information about the actor.  
+Furthermore,
+we intend to join this data with the [Orbis](https://www.bvdinfo.com/en-gb/our-products/data/international/orbis) 
+database to find the industries of the companies.
 
-We end up with a dataset of 3.139.628 entries. 
-Each entry contains the following fields:
-* `id`: The unique identifier for the entity
-* `caption`: The name of the entity
-* `schema`: The type of entity (e.g. Person, Associate, Company, ...)
-* `first_seen`: First occurrence of the entry in a dataset
-* `last_seen`: Last occurrence of the entry in a dataset
-* `last_change`: Last time the entry was updated
-* `target`: Is the entity directly a targeted in the datasource, if not, the entity is referred to a directly targeted entity like its political party or a referred address.   
-* `dataset_names`: The dataset the entry was found in
-* `datasets`: The information on the creator of the dataset (e.g., name country, ...)
-
-The full description can be found at [OpenSanctions](https://www.opensanctions.org/reference/).
-
-Since we are interested in the relationship between countries,
-we have to extract the country's information from the entity. 
-
-## GDELT Data
-
-## Export & Import
-Export the dataset from the database:
-```bash
-<pg_dump> -U postgres --dbname=<dbname> --schema='<schema>' --table=<schema>.<table> --file="<file>"
-```
-Import the dataset into the database:
-
-```bash
-<pg_dump> --dbname=<dbname> --schema='<schema>' --table=<schema>.<table> "<file>"
-```
+## The Tool
+The tool is a dashboard to visualize the data and provide various statistics. 

@@ -1,3 +1,11 @@
+/*
+ CREATE DATABASE sanctions;
+CREATE USER sanctions with password 'sanctions';
+ALTER DATABASE sanctions OWNER TO sanctions;
+GRANT ALL ON database sanctions TO sanctions;
+ */
+
+
 CREATE TABLE target_countries AS
 SELECT id, json_array_elements_text(properties->'country') AS target_country
 FROM entities_datasets
@@ -46,7 +54,7 @@ SELECT * FROM (
             properties->'name'->>0 AS target_name,
            jsonb_agg(target_country) AS target_country,
            jsonb_agg(title) AS sanctioned_dataset,
-           jsonb_agg(CASE WHEN publisher->>'country' IS NULL THEN '' ELSE publisher->>'country' END) AS sanctioned_by_country,
+           jsonb_agg(CASE WHEN publisher->>'country' IS NULL THEN NULL ELSE publisher->>'country' END) AS sanctioned_by_country,
            jsonb_agg(publisher->>'country_label') AS sanctioned_by_country_label
     FROM entities_datasets_small e
     LEFT JOIN target_countries t USING (id)
