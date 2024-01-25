@@ -5,66 +5,52 @@ import pandas as pd
 
 
 def plot_network(graph: nx.Graph):
-    pos = nx.spring_layout(graph, k=10, iterations=100)
+    pos = nx.spring_layout(graph, weight='weight')
 
-    for n, p in pos.items():
-        graph.nodes[n]['pos'] = p
+    weights = [d["weight"] for (_, _, d) in graph.edges(data=True)]
+    min_weights = min(weights)
+    max_weights = max(weights)
 
-    edge_trace = go.Scatter(
-        x=[],
-        y=[],
-        line=dict(width=0.5, color='#888'),
-        hoverinfo='none',
-        mode='lines')
+    nodes_x, nodes_y, nodes_color, nodes_text = [], [], [], []
+    annotations = []
 
-    for edge in graph.edges():
-        x0, y0 = graph.nodes[edge[0]]['pos']
-        x1, y1 = graph.nodes[edge[1]]['pos']
-        edge_trace['x'] += tuple([x0, x1, None])
-        edge_trace['y'] += tuple([y0, y1, None])
+    for node, adj in graph.adjacency():
+        nodes_x.append(pos[node][0])
+        nodes_y.append(pos[node][1])
 
-    node_trace = go.Scatter(
-        x=[],
-        y=[],
-        text=[],
-        mode='markers',
-        hoverinfo='text',
-        marker=dict(
-            showscale=True,
-            colorscale='RdBu',
-            reversescale=True,
-            color=[],
-            size=15,
-            colorbar=dict(
-                thickness=10,
-                title='Node Connections',
-                xanchor='left',
-                titleside='right'
-            ),
-            line=dict(width=0)))
+        weights = 0
+        scs = []
+        for edge in adj:
+            weight = adj[edge]["weight"]
+            weights += weight
 
-    for node in graph.nodes():
-        x, y = graph.nodes[node]['pos']
-        node_trace['x'] += tuple([x])
-        node_trace['y'] += tuple([y])
+            weight_norm = (weight - min_weights) / (max_weights - min_weights)
+            annotations.append(go.Scatter(x=[pos[node][0], pos[edge][0]], y=[pos[node][1], pos[edge][1]],
+                                          hoverinfo='skip',
+                                          marker={"size": 5+(10*weight_norm),
+                                                  "symbol": "arrow-bar-up", "angleref": "previous",
+                                                  "color": "rgba(0,0,0,.5)"}))
 
-    for node, adjacencies in enumerate(graph.adjacency()):
-        node_trace['marker']['color'] += tuple([len(adjacencies[1])])
-        node_info = adjacencies[0] + ' # of connections: ' + str(len(adjacencies[1]))
-        node_trace['text'] += tuple([node_info])
+            scs.append(edge)
 
-    return go.Figure(data=[edge_trace, node_trace],
-                     layout=go.Layout(
-                         titlefont=dict(size=16),
-                         showlegend=False,
-                         hovermode='closest',
-                         margin=dict(b=20, l=5, r=5, t=40),
-                         annotations=[dict(
-                             text="No. of connections",
-                             showarrow=False,
-                             xref="paper", yref="paper")],
-                         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
+        nodes_color.append(weights)
+        nodes_text.append(f"{node} is sanctioning {weights} entities ({len(adj)} Countries)")
+
+    node_trace = go.Scatter(x=nodes_x, y=nodes_y, text=nodes_text, mode='markers', hoverinfo='text', opacity=0.5,
+                            marker={
+            "showscale": True, "colorscale": 'RdBu', "reversescale": True, "color": nodes_color,
+            "size": 15, "colorbar": {"thickness": 10, "title": 'Number of sanctioned entities', "xanchor": 'left', "titleside": 'right'},
+            "line": {"width": 0}
+        })
+
+    ticks = {"showgrid": True, "zeroline": True, "showticklabels": False}
+
+    fig = go.Figure(data=annotations + [node_trace], layout=go.Layout(#annotations=annotations,
+                         titlefont={"size": 16}, showlegend=False, hovermode='closest',
+                         margin={"b": 20, "l": 5, "r": 5, "t": 40}, xaxis=ticks, yaxis=ticks))
+    #fig.add_trace(node_trace)
+    #fig.update_layout(annotations=annotations)
+    return fig
 
 
 def get_centralities(graph: nx.Graph):
@@ -72,11 +58,11 @@ def get_centralities(graph: nx.Graph):
         "Degree": nx.degree_centrality(graph),
         "In-Degree": nx.in_degree_centrality(graph),
         "Out-Degree": nx.out_degree_centrality(graph),
-        "Eigenvector": nx.eigenvector_centrality(graph),
+        "Eigenvector": nx.eigenvector_centrality(graph, weight="weight", max_iter=1000),
         "Closeness": nx.closeness_centrality(graph),
-        "Betweenness": nx.betweenness_centrality(graph),
-        "Clustering": nx.clustering(graph),
-        "Pagerank": nx.pagerank(graph)
+        "Betweenness": nx.betweenness_centrality(graph, weight="weight"),
+        "Clustering": nx.clustering(graph, weight="weight"),
+        "Pagerank": nx.pagerank(graph, weight="weight")
     }
 
     names = list(metrics.keys())

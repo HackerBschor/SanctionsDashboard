@@ -4,90 +4,23 @@ import datetime
 import psycopg2
 from colorama import Fore, Style
 
-schema: str = """
-    DROP TABLE IF EXISTS entities;
-    CREATE TABLE entities (
-        id TEXT PRIMARY KEY,
-        caption TEXT,
-        schema TEXT,
-        properties JSON,
-        referents JSON,
-        datasets JSON,
-        first_seen timestamp,
-        last_seen timestamp,
-        last_change timestamp,
-        target boolean
-    );
-    
-    DROP TABLE IF EXISTS names;
-    CREATE TABLE names (
-        name TEXT PRIMARY KEY
-    );
-    
-    DROP TABLE IF EXISTS datasets;
-    CREATE TABLE datasets (
-        name TEXT PRIMARY KEY,
-        title TEXT,
-        url TEXT,
-        index_url TEXT,
-        summary TEXT,
-        description TEXT,
-        publisher JSON
-    );
-    
-    DROP TABLE IF EXISTS entries_countries;
-    CREATE TABLE entries_countries (
-        id varchar(200),
-        target_country varchar(8),
-        source_country varchar(8),
-        schema varchar(16),
-        first_seen timestamp,
-        last_seen timestamp,
-        last_change timestamp,
-        target boolean
-    );
-    
-    CREATE TABLE countries (
-        alpha_2 VARCHAR(2),
-        alpha_3 VARCHAR(3),
-        flag VARCHAR(3),
-        name VARCHAR(50)
-    );
-        """
+from util.DB import get_connection
 
 
-def get_connection(host="localhost", database="sanctions", user="sanctions", password="sanctions"):
-    """
-    Creates connection to database
-    :return: postgresql connection
-    """
-    return psycopg2.connect(host=host, database=database, user=user, password=password)
-
-
-def create_schema() -> None:
-    """
-    Creates the database schema
-    :return:
-    """
-    conn: psycopg2.connection = get_connection()
-    cursor: psycopg2.cursor = conn.cursor()
-    cursor.execute(schema)
-    conn.commit()
-    conn.close()
-
-
-def write_entities(file="data/entities.ftm.json") -> None:
+def write_entities(file="../data/entities.ftm.json", schemas_file="../data/schemas.txt") -> None:
     """
     Inserts an OpenSanctions Default Dataset (https://www.opensanctions.org/datasets/default/) into the database.
     The dataset has to be in the FollowTheMoney format (entities.ftm.json).
     :return:
     """
-    conn: psycopg2.connection = get_connection()
-    cursor: psycopg2.cursor = conn.cursor()
+    conn = get_connection()
+    cursor = conn.cursor()
+    schemas = {" "}
 
-    with open(file, 'r', encoding="UTF-8") as f:
-        for count, entity in enumerate(f):
+    with open(file, 'r', encoding="UTF-8") as fd:
+        for count, entity in enumerate(fd):
             print("\rLine: ", count, end="")
+
             entity = json.loads(entity)
 
             caption = entity['caption'] if len(entity['caption']) < 256 else entity['caption'][:253] + "..."
@@ -100,8 +33,13 @@ def write_entities(file="data/entities.ftm.json") -> None:
                  json.dumps(entity['referents']), json.dumps(entity['datasets']), entity['first_seen'],
                  entity['last_seen'], entity['last_change'], entity['target']))
 
+            schemas.add(entity['schema'])
+
     conn.commit()
     conn.close()
+
+    with open(schemas_file, 'w') as fd:
+        fd.write("\n".join(schemas))
 
 
 def download_datasets(sanctions_index: json) -> None:

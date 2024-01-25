@@ -1,11 +1,13 @@
 import json
 
 import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 import networkx as nx
 import pandas as pd
 import plotly.express as px
 from dash import Dash, html, dcc, callback, Output, Input, dash_table, State
 from sqlalchemy import create_engine
+from datetime import date
 
 from sanctions_dashboard.tab_util.network import plot_network, get_centralities
 from sanctions_dashboard.tab_util.sanctions_by_country import generate_country_data
@@ -18,113 +20,141 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 engine = create_engine("postgresql+psycopg2://sanctions:sanctions@localhost:5432/sanctions")
 
 
-def create_country_list(col):
-    sql = f"SELECT DISTINCT {col}, description FROM entries_countries JOIN countries ON ({col} = alpha_2)"
+def create_country_list(col=None):
+    if col is not None:
+        sql = f"SELECT DISTINCT {col}, description FROM entries_countries JOIN countries ON ({col} = alpha_2)"
+    else:
+        sql = """SELECT alpha_2, description FROM (
+                        SELECT source_country AS alpha_2 FROM entries_countries
+                        UNION
+                        SELECT target_country AS alpha_2 FROM entries_countries
+                    ) a
+                    JOIN countries USING (alpha_2)"""
     country_list = pd.read_sql(sql, con=engine)
     return [{"label": row[1], "value": row[0]} for row in country_list.values]
 
 
 target_countries = create_country_list("target_country")
 source_countries = create_country_list("source_country")
+all_countries = create_country_list()
 
-schemas = ['', 'Address', 'Airplane', 'Associate', 'BankAccount', 'Company', 'CryptoWallet', 'Directorship',
-           'Employment', 'Family', 'Identification', 'LegalEntity', 'Membership', 'Occupancy', 'Organization',
-           'Ownership', 'Passport', 'Person', 'Position', 'Representation', 'Sanction', 'Security', 'UnknownLink',
-           'Vessel']
+with open("../data/schemas.txt", "r") as f:
+    schemas = [{"label": v, "value": v} for v in f.read().split("\n")]
+
+
+with open("../data/industries.txt", "r") as f:
+    industries = [{"value": v, "label": " ".join([x.capitalize() for x in v.replace("/", " / ").split(" ")])} for v in f.read().split("\n")]
+
+entity_search_header = [
+    {'name': i, 'id': i, 'deletable': True} for i in
+    ["Title", "Country", "First Seen", "Last Seen", "Last Change", "Datasets"]]
+
+network_metrics_header = [
+    {'name': i, 'id': i, 'deletable': True} for i in
+    ['Country', 'Degree', 'In-Degree', 'Out-Degree', 'Eigenvector', 'Closeness', 'Betweenness', 'Clustering']]
+
+tooltip_header = {
+    'Country': 'Country',
+    'Degree': 'Number of edges connected to it (How many countries a particular country has sanctioned or has been sanctioned by)',
+    'In-Degree': 'Number of incoming edges (How many countries are imposing sanctions on a particular country)',
+    'Out-Degree': "Number of outgoing edges (How many countries a particular country is sanctioning)",
+    'Eigenvector': "A node's importance based on the importance of its neighbors. considers quantity & quality of connections (TODO, Not trivial)",
+    'Closeness': "How close a node is to all other nodes in the network (How quickly a country can be reached, either directly or indirectly, in terms of imposing or facing sanctions)",
+    'Betweenness': "How often a node lies on the shortest path between other nodes (High betweenness centrality indicates a crucial role in the flow of sanctions between other countries)",
+    'Clustering': "The extent to which a node's neighbors are connected to each other (Indicate the tendency of groups of countries to collectively impose sanctions or be collectively sanctioned)",
+    'Pagerank': "Assigns importance to a node based on the importance of nodes pointing to it (Country with high Pagerank would be one that is sanctioned by countries that are themselves considered important in the network)"
+}
 
 app.layout = html.Div([
-    dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Network Analysis Help")),
-            dbc.ModalBody(dcc.Markdown('''
-                Explanation of the various metrics.
-                
-                |  Centrality  |  Description  | Context |
-                |---|---|---|
-                | Degree Centrality | Number of edges connected to it | How many countries a particular country has sanctioned or has been sanctioned by |
-                | In-Degree Centrality | Number of incoming edges | How many countries are imposing sanctions on a particular country | 
-                | Out-Degree Centrality | Number of outgoing edges | How many countries a particular country is sanctioning |
-                | Eigenvector Centrality | A node's importance based on the importance of its neighbors. considers quantity & quality of connections | TODO, Not trivial |
-                | Closeness Centrality | How close a node is to all other nodes in the network | How quickly a country can be reached, either directly or indirectly, in terms of imposing or facing sanctions | 
-                | Betweenness Centrality | How often a node lies on the shortest path between other nodes | High betweenness centrality indicates a crucial role in the flow of sanctions between other countries |
-                | Clustering Centrality | The extent to which a node's neighbors are connected to each other | Indicate the tendency of groups of countries to collectively impose sanctions or be collectively sanctioned |
-                | Pagerank | Assigns importance to a node based on the importance of nodes pointing to it | Country with high Pagerank would be one that is sanctioned by countries that are themselves considered important in the network |
-            ''')),
-            dbc.ModalFooter(dbc.Button("Close", id="btn-close-help-network", className="ms-auto", n_clicks=0)),
-    ], id="modal-help-network", size="lg", is_open=False),
 
     dbc.Container([
-        html.H1("OpenSanctions Dashboard"),
+        # html.H1("OpenSanctions Dashboard"),
+        html.H4(""),
         dcc.Tabs(id="tabs-select", value='Sanctions by Country', children=[
             # TAB 1
             dcc.Tab(label='Sanctions by Country', value='Sanctions by Country', children=[
-                html.Br(),
-
+                html.H4("Filter"),
                 dbc.Row([
-                    dbc.Col(
-                        dbc.Select(options=["Sanctions towards", "Sanctions from"], value="Sanctions towards",
-                                   id='dd-sanction-mode'),
-                        width=6, lg=2),
-                    dbc.Col(
-                        dcc.Dropdown(options=target_countries, id='dd-country', placeholder="Country"), width=6, lg=3),
-                    dbc.Col(dbc.Select(options=schemas, id='dd-schemas', placeholder="Schema"), width=6, lg=2),
-                    dbc.Col(dbc.Button("Search", color="light", className="me-1", n_clicks=0), width=6, lg=1),
-                    dbc.Col(
-                        dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-sbc", n_clicks=0),
-                        width=6, lg=2)
+                    dbc.Col(dmc.Select(id='dd-sanction-mode', data=["Sanctions towards", "Sanctions from"], value="Sanctions towards"), width=6, lg=2),
+                    dbc.Col(dmc.Select(data=target_countries, id='dd-country', placeholder="Country", searchable=True), width=6, lg=3),
+                    dbc.Col(dmc.DatePicker(id="dd-start-date", placeholder="Start Date", minDate=date(201, 5, 21)), width=6, lg=2),
+                    dbc.Col(dmc.DatePicker(id="dd-end-date", placeholder="End Date", minDate=date(201, 5, 21)), width=6, lg=2),
+                    dbc.Col(dbc.Button("Excel Export", color="primary", id="btn-export-sbc", n_clicks=0), width=12, lg=2)
+                ]),
+                html.Br(),
+                dbc.Row([
+                    dbc.Col(dmc.Select(data=schemas, id='dd-schemas', placeholder="Schema", searchable=True), width=6, lg=2),
+                    dbc.Col(dmc.Select(data=industries, id='dd-industries', placeholder="Industries", searchable=True), width=6, lg=3),
                 ]),
 
+                html.Br(),
+                html.H4("Number of Entries by Country"),
                 dbc.Row(dcc.Graph(id="graph-sanctions-by-country")),
+                html.H4("Number of Entries by Date"),
+                dbc.Row(dcc.Graph(id="graph-sanctions-timeline")),
 
                 dbc.Row([
-                    dbc.Col([dcc.Graph(id="graph-sanctions-timeline")], lg=6),
+                    dbc.Col(html.H4("Number of Entries by Schema"), lg=6),
+                    dbc.Col(html.H4("Number of Entries by Industry"), lg=6),
+                ]),
+
+                dbc.Row([
+                    dbc.Col([dcc.Graph(id="graph-sanctions-industry")], lg=6),
                     dbc.Col([dcc.Graph(id="graph-types")], lg=6),
                 ])
             ]),
 
             # TAB 2
-            dcc.Tab(label='Individuals', value='Individuals', children=[
-                html.Br(),
+            dcc.Tab(label='Entities', value='entities', children=[
+                html.H4("Search"),
                 dbc.Row([
-                    dbc.Col(dbc.Input(id="input-search-caption", type="text", placeholder="Search", debounce=True),
-                            width=12, lg=4),
-                    dbc.Col(dbc.Select(options=schemas, id='dd-individ-schemas', placeholder="Schema"), width=6, lg=2),
-                    dbc.Col(dbc.Button("Search", color="light", className="me-1", n_clicks=0), width=6, lg=1),
-                    dbc.Col(dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-individ",
-                                       n_clicks=0), width=6, lg=2)
+                    dbc.Col(dmc.TextInput(id="input-search-caption", type="text", placeholder="Query", debounce=True), width=12, lg=4),
+                    dbc.Col(dmc.Select(data=target_countries, id='dd-search-country', placeholder="Country", searchable=True), width=6, lg=3),
+                    dbc.Col(dmc.Select(data=schemas, id='dd-individ-schemas', placeholder="Schema", searchable=True), width=6, lg=2),
+                    dbc.Col(dbc.Button("Search", id='btn-search-entity', color="light", className="me-1", n_clicks=0), width=6, lg=1),
+                    dbc.Col(dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-individ", n_clicks=0), width=6, lg=2)
                 ]),
                 html.Br(),
-                dbc.Row([dash_table.DataTable(data=[], id='tbl-individ-results', style_cell={"whiteSpace": "pre-line"},
-                                              fill_width=False)]),
+                html.H4("Result"),
+                dbc.Row([dash_table.DataTable(
+                    id='tbl-individ-results', columns=entity_search_header, data=[],
+                    style_cell={"whiteSpace": "pre-line"}, sort_action="native", sort_mode='multi',
+                    row_deletable=False, page_action='native', page_current=0, page_size=10
+                )])
             ]),
 
             # TAB 3
             dcc.Tab(label='Network Analysis', value='Network Analysis', children=[
-                html.Br(),
-
+                html.H4("Filter"),
                 dbc.Row([
-                    dbc.Col(dbc.Button("Load", color="light", id="btn-load-network", n_clicks=0), width=4, lg=1),
-                    dbc.Col(dbc.Button("Help", color="success", className="me-1", id="btn-open-help-network", n_clicks=0),
-                            width=4, lg=1),
-                    dbc.Col(
-                        dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-network",
-                                   n_clicks=0), width=4, lg=2),
+                    dbc.Col(dmc.Select(data=schemas, id='dd-network-schemas', placeholder="Schema", searchable=True), width=6, lg=2),
+                    dbc.Col(dmc.Select(data=industries, id='dd-network-industries', placeholder="Industries", searchable=True), width=6, lg=3),
+                    dbc.Col(dmc.DatePicker(id="dd-network-start-date", placeholder="Start Date", minDate=date(201, 5, 21)), width=6, lg=2),
+                    dbc.Col(dmc.DatePicker(id="dd-network-end-date", placeholder="End Date", minDate=date(201, 5, 21)), width=6, lg=2),
+                    dbc.Col(dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-network", n_clicks=0), width=4, lg=2),
                 ]),
-
+                html.Br(),
+                dbc.Row([
+                    dbc.Col(dmc.MultiSelect(id="dd-network-countries", searchable=True, placeholder="Countries", data=all_countries), width=12, lg=9),
+                    dbc.Col(dbc.Button("Load", color="light", id="btn-load-network", n_clicks=0), width=4, lg=1),
+                ]),
+                html.Br(),
+                html.H4("Who Sanctions Whom"),
                 dcc.Graph(id="graph-network-analysis"),
 
+                html.Br(),
+                html.H4("Centrality Scores"),
                 dash_table.DataTable(
-                    data=[], id='tbl-network-analysis-statistics',
-                    style_data={'whiteSpace': 'normal', 'height': 'auto', 'lineHeight': '15px'})
-            ]),
-
-            # TAB 4
-            dcc.Tab(label='Industries', value='Industries', children=[]),
-
+                    id='tbl-network-analysis-statistics',
+                    tooltip_header=tooltip_header, tooltip_delay=0, tooltip_duration=None,
+                    columns=network_metrics_header, data=[],
+                    style_cell={"whiteSpace": "pre-line"}, sort_action="native", sort_mode='multi',
+                    row_deletable=False, page_action='native', page_current=0, page_size=10)
+            ])
         ]),
         dcc.Download(id="download")
     ], fluid=True)
 ])
-
 
 """
 @app.server.route('/static/<path:path>')
@@ -132,17 +162,6 @@ def static_file(path):
     static_folder = os.path.join(os.getcwd(), 'static')
     return send_from_directory(static_folder, path)
 """
-
-
-@app.callback(
-    Output("modal-help-network", "is_open"),
-    [Input("btn-open-help-network", "n_clicks"), Input("btn-close-help-network", "n_clicks")],
-    [State("modal-help-network", "is_open")],
-)
-def toggle_modal(n1, n2, is_open):
-    if n1 or n2:
-        return not is_open
-    return is_open
 
 
 @callback(
@@ -156,66 +175,90 @@ def update_graph(value):
 @callback(
     [Output("graph-sanctions-by-country", "figure"),
      Output("graph-sanctions-timeline", "figure"),
-     Output("graph-types", "figure")],
+     Output("graph-types", "figure"),
+     Output("graph-sanctions-industry", "figure")],
     [Input("dd-sanction-mode", "value"),
      Input("dd-country", "value"),
-     Input("dd-schemas", "value")]
+     Input("dd-schemas", "value"),
+     Input("dd-industries", "value"),
+     Input("dd-start-date", "value"),
+     Input("dd-end-date", "value")]
 )
-def update_graph(mode, country, schema):
+def update_graph(mode, country, schema, industry, start_date, end_date):
     plt1 = px.bar(pd.DataFrame({"Country": [], "Amount": []}), x="Country", y="Amount")
     plt2 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
     plt3 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
+    plt4 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
 
     if mode is None or country is None:
-        return plt1, plt2, plt3
+        return plt1, plt2, plt3, plt4
 
-    df = generate_country_data(engine, mode, country, schema)
+    df = generate_country_data(engine, mode, country, schema, industry, start_date, end_date)
 
     col = "source" if mode == "Sanctions towards" else "target"
-    df1 = df.groupby(col)["id"].nunique().reset_index()
-    plt1 = px.bar(df1, x=col, y="id", labels={"id": "Amount", col: "Country"}, title='Number of Entries by Country')
+    df1 = df.groupby(col)["id"].nunique().reset_index().sort_values(by="id")
+    plt1 = px.bar(df1, x=col, y="id", labels={"id": "Amount", col: "Country"})
 
     df_melt = pd.melt(
         df.rename(columns={"first_seen": "First Seen", "last_seen": "Last Seen", "last_change": "Last Change"}),
-        id_vars=['id'], value_vars=['First Seen', 'Last Seen', 'Last Change'], var_name='value', value_name='date')
+        id_vars=('id',), value_vars=['First Seen', 'Last Seen', 'Last Change'], var_name="value", value_name="date")
+
     df_melt["date"] = pd.to_datetime(df_melt["date"])
     df_melt["date"] = df_melt["date"].dt.date
-    df_melt = df_melt.groupby(["value", "date"])["id"].nunique().reset_index()
+    df_melt = df_melt.groupby(["value", "date"])[("id", )].nunique().reset_index()
+    
+    plt2 = px.line(df_melt, x="date", y="id", color="value", labels={"id": "Amount", "date": "Date", "value": "Type"})
 
-    plt2 = px.line(df_melt, x="date", y="id", color="value", labels={"id": "Amount", "date": "Date", "value": "Type"},
-                   title='Number of Entries by Date')
+    plt3 = px.bar(df["schema"].value_counts().sort_values(), labels={"value": "Count", "schema": "Schema"})
 
-    plt3 = px.bar(df["schema"].value_counts(), labels={"value": "Count", "schema": "Schema"},
-                  title='Number of Entries by Schema')
+    plt4 = px.bar(df["industry"].value_counts().sort_values(), labels={"value": "Count", "schema": "Schema"})
 
-    return plt1, plt2, plt3
+    return plt1, plt2, plt3, plt4
 
 
 @callback(
     Output("tbl-individ-results", "data"),
-    [Input("dd-individ-schemas", "value"),
-     Input("input-search-caption", "value")],
+    [State("dd-individ-schemas", "value"),
+     State("input-search-caption", "value"),
+     State("dd-search-country", "value"),
+     Input("btn-search-entity", "n_clicks")],
     prevent_initial_call=True)
-def download(schema, query):
+def download(schema, query, country, _):
     if query is None or len(query.strip()) == 0:
         return []
 
-    restriction = []
+    country_join = ""
+    restriction = ["LOWER(caption) LIKE concat('%%', LOWER(%(query)s) ,'%%')"]
 
     if schema is not None:
         restriction.append("schema = %(schema)s")
 
-    sql = f"""SELECT caption AS "Caption", datasets AS "Datasets", properties AS "Info",
-    DATE(first_seen) AS "First Seen", DATE(last_seen) AS "Last Seen", DATE(last_change) AS "Last Change" 
-    FROM entities WHERE LOWER(caption) LIKE concat('%%', LOWER(%(query)s) ,'%%')"""
-    sql += "" if len(restriction) == 0 else " AND " + " AND ".join(restriction)
+    if country is not None:
+        country_join = "JOIN (SELECT id FROM entries_countries WHERE source_country = %(country)s) ec USING (id)"
 
-    df = pd.read_sql(sql, params={"schema": schema, "query": query}, con=engine)
-    df["Datasets"] = df["Datasets"].apply(lambda x: "\n".join(x))
-    df["Info"] = df["Info"].apply(lambda x: bytes(json.dumps(x), 'utf-8').decode('unicode_escape')[0:50] + "...")
+    sql = f"""SELECT caption, country_descr, e.first_seen, e.last_seen, e.last_change, 
+        STRING_AGG(CONCAT(d.title, CASE WHEN flag IS NULL THEN '' ELSE CONCAT(' (', flag, ')') END), '\n') AS datasets
+        FROM (
+            SELECT id, caption, first_seen, last_seen, last_change, json_array_elements_text(datasets) AS name
+            FROM entities 
+            {country_join}
+            WHERE {" AND ".join(restriction)}
+        ) e
+        LEFT JOIN (SELECT id, target_country FROM entries_countries) ec USING (id)
+        LEFT JOIN (SELECT alpha_2 AS target_country, description AS country_descr FROM countries) c USING (target_country)
+        JOIN datasets d USING (name)
+        LEFT JOIN (SELECT alpha_2, flag FROM countries) c2 ON (d.publisher->>'country' = c2.alpha_2)
+        GROUP BY 1,2,3,4,5"""
 
-    # df["referents"] = df["referents"].apply(str)
-    # df["datasets"] = df["datasets"].apply(str)
+    df = pd.read_sql(sql, params={"schema": schema, "query": query, "country": country}, con=engine)
+
+    df['first_seen'] = pd.to_datetime(df['first_seen']).dt.date
+    df['last_seen'] = pd.to_datetime(df['last_seen']).dt.date
+    df['last_change'] = pd.to_datetime(df['last_change']).dt.date
+
+    df.rename(columns={"caption": "Title", "country_descr": "Country", "datasets": "Datasets",
+                       "first_seen": "First Seen", "last_seen": "Last Seen", "last_change": "Last Change"},
+              inplace=True)
 
     return df.to_dict("records")
 
@@ -223,18 +266,48 @@ def download(schema, query):
 @callback(
     [Output("graph-network-analysis", "figure"),
      Output("tbl-network-analysis-statistics", "data")],
-    Input("btn-load-network", "n_clicks"),
+    [Input("btn-load-network", "n_clicks"),
+     State("dd-network-schemas", "value"),
+     State("dd-network-industries", "value"),
+     State("dd-network-start-date", "value"),
+     State("dd-network-end-date", "value"),
+     State("dd-network-countries", "value")],
     prevent_initial_call=True)
-def network(_):
-    sql = """SELECT s.description AS source, t.description AS target, count(DISTINCT id) AS weight 
+def network(_, schema, industry, start_date, end_date, countries):
+    conditions = ["source_country != target_country"]
+
+    if schema is not None and schema != "":
+        conditions.append('schema = %(s)s')
+
+    if industry is not None and industry != "":
+        conditions.append('industry = %(i)s')
+
+    if start_date is not None and start_date != "":
+        conditions.append('first_seen > %(sd)s')
+
+    if end_date is not None and end_date != "":
+        conditions.append('last_seen < %(ed)s')
+
+    if countries is not None and countries != "":
+        countries = ", ".join(map(lambda x: f"'{x}'", countries))
+        conditions.append(f'source_country IN ({countries}) AND target_country IN ({countries})')
+
+    condition = ' AND '.join(conditions)
+
+    sql = f"""SELECT s.description AS source, t.description AS target, count(DISTINCT id) AS weight 
     FROM entries_countries 
     JOIN countries s ON (s.alpha_2 = source_country) 
     JOIN countries t ON (t.alpha_2 = target_country)  
-    GROUP BY 1,2"""
+    WHERE {condition}
+    GROUP BY 1, 2"""
 
-    df = pd.read_sql(sql, params={}, con=engine)
-    graph = nx.from_pandas_edgelist(df, source="source", target="target", edge_attr=["weight"],
-                                    create_using=nx.DiGraph())
+    df = pd.read_sql(sql, params={"s": schema, "i": industry, "sd": start_date, "ed": end_date}, con=engine)
+
+    graph = nx.from_pandas_edgelist(
+        df, source="source", target="target", edge_attr=["weight"], create_using=nx.DiGraph())
+
+    if graph.number_of_nodes() == 0:
+        return px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
 
     metrics = get_centralities(graph)
 
@@ -246,14 +319,14 @@ def network(_):
     [Input("btn-export-sbc", "n_clicks"),
      State("dd-sanction-mode", "value"),
      State("dd-country", "value"),
-     State("dd-schemas", "value")],
+     State("dd-schemas", "value"),
+     State("dd-industries", "value")],
     prevent_initial_call=True)
-def download(_, mode, country, schema):
+def download(_, mode, country, schema, industry):
     def to_xlsx(bytes_io):
-        xslx_writer = pd.ExcelWriter(bytes_io, engine="xlsxwriter")  # requires the xlsxwriter package
-        pd.DataFrame(generate_country_data(mode, country,
-                                           schema)).to_excel(xslx_writer, index=False,
-                                                             sheet_name="sheet1")
+        xslx_writer = pd.ExcelWriter(bytes_io, engine="xlsxwriter")
+        df = generate_country_data(engine, mode, country, schema, industry, None, None) # TODO
+        pd.DataFrame(df).to_excel(xslx_writer, index=False, sheet_name="sheet1")
         xslx_writer.close()
 
     return dcc.send_bytes(to_xlsx, "test.xlsx")
