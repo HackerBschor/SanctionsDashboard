@@ -1,10 +1,17 @@
+import sys
+
 import pandas as pd
 import numpy as np
 
-from util.DB import get_connection
+from DB import get_connection
 
 if __name__ == '__main__':
-    df = pd.read_csv('../data/companies_sorted.csv')
+    if len(sys.argv) == 1:
+        file = "../data/companies_sorted.csv"
+    else:
+        file = sys.argv[1]
+
+    df = pd.read_csv('')
     df = df.replace({np.nan: None})
 
     conn = get_connection()

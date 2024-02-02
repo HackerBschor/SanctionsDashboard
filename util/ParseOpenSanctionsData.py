@@ -6,7 +6,7 @@ import datetime
 import psycopg2
 from colorama import Fore, Style
 
-from util.DB import get_connection, create_schema
+from DB import get_connection, create_schema
 
 
 def write_entities(file="../data/entities.ftm.json") -> None:
