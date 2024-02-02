@@ -11,7 +11,7 @@ if __name__ == '__main__':
     else:
         file = sys.argv[1]
 
-    df = pd.read_csv('')
+    df = pd.read_csv(file)
     df = df.replace({np.nan: None})
 
     conn = get_connection()
