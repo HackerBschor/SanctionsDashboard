@@ -24,10 +24,10 @@ if __name__ == '__main__':
 
         cursor.execute(
             '''INSERT INTO companies (
-                name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
+                id, name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
                 current_employee_estimate, total_employee_estimate
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-            (row['name'], row['domain'], year_founded, row['industry'],
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+            (i, row['name'], row['domain'], year_founded, row['industry'],
              row['size range'], row['locality'], row['country'], row['linkedin url'],
              row['current employee estimate'], row['total employee estimate']))
 
