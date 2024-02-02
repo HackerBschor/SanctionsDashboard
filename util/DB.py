@@ -1,6 +1,6 @@
 import psycopg2
 
-schema: str = """
+sql_schema: str = """
     DROP TABLE IF EXISTS entities;
     CREATE TABLE entities (
         id TEXT PRIMARY KEY,
@@ -24,12 +24,14 @@ schema: str = """
         index_url TEXT,
         summary TEXT,
         description TEXT,
-        publisher JSON
+        publisher JSON,
+        type TEXT
     );
 
-    DROP TABLE IF EXISTS entries_countries;
-    CREATE TABLE entries_countries (
-        id varchar(200),
+    DROP TABLE IF EXISTS entities_countries;
+    CREATE TABLE entities_countries (
+        id VARCHAR(255),
+        caption TEXT,
         target_country varchar(8),
         source_country varchar(8),
         schema varchar(16),
@@ -45,15 +47,8 @@ schema: str = """
         alpha_2 VARCHAR(2),
         alpha_3 VARCHAR(3),
         flag VARCHAR(3),
-        name VARCHAR(50)
-    );
-
-    DROP TABLE IF EXISTS orbis_companies;
-    CREATE TABLE orbis_companies (
-        id SERIAL PRIMARY KEY ,
-        name VARCHAR(200),
-        alpha_2 VARCHAR(2),
-        bvd_sectors VARCHAR(60)
+        name VARCHAR(50),
+        description VARCHAR (60)
     );
     
     DROP TABLE IF EXISTS companies;
@@ -72,6 +67,28 @@ schema: str = """
     );
     """
 
+sql_indices: str = """
+    CREATE INDEX ON entities(LOWER(caption));
+    CREATE INDEX ON companies(LOWER(name));
+    CREATE INDEX ON entities(id);
+    CREATE INDEX ON entities_countries(id);
+        
+    CREATE INDEX ON entities(LOWER(caption));
+    CREATE INDEX ON entities(schema);
+    CREATE INDEX ON entities_countries(source_country);
+"""
+
+sql_update_industries: str = """
+    UPDATE entities e1 SET industry = c.industry 
+    FROM entities e2
+    JOIN (SELECT name, industry FROM companies) c ON (LOWER(name) = LOWER(caption))
+    WHERE e1.id = e2.id;
+    
+    UPDATE entities_countries ec SET industry = e.industry
+    FROM entities e
+    WHERE e.id = ec.id;
+"""
+
 
 def get_connection(host="localhost", database="sanctions", user="sanctions", password="sanctions"):
     """
@@ -81,13 +98,29 @@ def get_connection(host="localhost", database="sanctions", user="sanctions", pas
     return psycopg2.connect(host=host, database=database, user=user, password=password)
 
 
+def execute_insert_update_query(sql) -> None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    conn.commit()
+    conn.close()
+
+
 def create_schema() -> None:
     """
     Creates the database schema
     :return:
     """
-    conn: psycopg2.connection = get_connection()
-    cursor: psycopg2.cursor = conn.cursor()
-    cursor.execute(schema)
-    conn.commit()
-    conn.close()
+    execute_insert_update_query(sql_schema)
+
+
+def create_indexes() -> None:
+    """
+    Creates the database indexes
+    :return:
+    """
+    execute_insert_update_query(sql_indices)
+
+
+def update_industries() -> None:
+    execute_insert_update_query(sql_update_industries)

@@ -4,10 +4,10 @@ import datetime
 import psycopg2
 from colorama import Fore, Style
 
-from util.DB import get_connection
+from util.DB import get_connection, create_schema
 
 
-def write_entities(file="../data/entities.ftm.json", schemas_file="../data/schemas.txt") -> None:
+def write_entities(file="../data/entities.ftm.json") -> None:
     """
     Inserts an OpenSanctions Default Dataset (https://www.opensanctions.org/datasets/default/) into the database.
     The dataset has to be in the FollowTheMoney format (entities.ftm.json).
@@ -38,9 +38,6 @@ def write_entities(file="../data/entities.ftm.json", schemas_file="../data/schem
     conn.commit()
     conn.close()
 
-    with open(schemas_file, 'w') as fd:
-        fd.write("\n".join(schemas))
-
 
 def download_datasets(sanctions_index: json) -> None:
     """
@@ -59,11 +56,11 @@ def download_datasets(sanctions_index: json) -> None:
 
         if data is not None:
             cursor.execute(
-                """INSERT INTO datasets (name, title, url, index_url, summary, description, publisher) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                """INSERT INTO datasets (name, title, url, index_url, summary, description, publisher, type) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                 (data['name'], data['title'], data['url'] if "url" in data else None, data['index_url'],
                  data['summary'] if 'summary' in data else None, data['description'] if "description" in data else None,
-                 json.dumps(data['publisher']) if "publisher" in data else None))
+                 json.dumps(data['publisher']) if "publisher" in data else None, data['type']))
 
         print((f"{Fore.GREEN}OK" if data is not None else f"{Fore.RED}Failed") + Style.RESET_ALL)
 
@@ -89,23 +86,24 @@ def download_dataset(date, name, retries=100) -> json:
 
 
 def create_country_relation_table():
+    conn = get_connection()
+    cursor = conn.cursor()
+
     sql = """
-        INSERT INTO entries_countries (id, caption, schema, target_country, source_country, first_seen, last_seen, last_change, target)
+        INSERT INTO entities_countries (id, caption, schema, target_country, source_country, first_seen, last_seen, last_change, target)
         
         SELECT * FROM (
             SELECT DISTINCT id, caption, schema,
-                json_array_elements_text(properties->'country') AS target_country,
+                json_array_elements_text(COALESCE(properties->'country', properties->'jurisdiction')) AS target_country,
                 publisher->>'country' as source_country,
                 first_seen, last_seen, last_change, target
             FROM (
                 SELECT id, caption, schema, first_seen, last_seen, last_change, target, properties, json_array_elements_text(datasets) AS name
                 FROM entities
             ) e
-            JOIN datasets USING (name)
+            JOIN (SELECT * FROM datasets WHERE type <> 'external') d USING (name)
         ) f WHERE source_country IS NOT NULL AND target_country IS NOT NULL"""
 
-    conn = get_connection()
-    cursor = conn.cursor()
     cursor.execute(sql)
     conn.commit()
     conn.close()
@@ -140,7 +138,9 @@ SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Vessel' ORDER BY 
 
 
 if __name__ == '__main__':
-    #create_schema()
-    #write_entities("data")
-    with open("data/index.json", "r") as f:
-        download_datasets(json.load(f))
+    # create_schema()
+    # with open("../data/index.json", "r") as f:
+    #    download_datasets(json.load(f))
+    # write_entities("../data/entities.ftm.json")
+    # create_country_relation_table()
+    pass

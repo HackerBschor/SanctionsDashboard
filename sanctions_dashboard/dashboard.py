@@ -1,5 +1,3 @@
-import json
-
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 import networkx as nx
@@ -14,20 +12,18 @@ from sanctions_dashboard.tab_util.sanctions_by_country import generate_country_d
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-# app.css.config.serve_locally = True
-# app.scripts.config.serve_locally = True
 
 engine = create_engine("postgresql+psycopg2://sanctions:sanctions@localhost:5432/sanctions")
 
 
 def create_country_list(col=None):
     if col is not None:
-        sql = f"SELECT DISTINCT {col}, description FROM entries_countries JOIN countries ON ({col} = alpha_2)"
+        sql = f"SELECT DISTINCT {col}, description FROM entities_countries JOIN countries ON ({col} = alpha_2)"
     else:
         sql = """SELECT alpha_2, description FROM (
-                        SELECT source_country AS alpha_2 FROM entries_countries
+                        SELECT source_country AS alpha_2 FROM entities_countries
                         UNION
-                        SELECT target_country AS alpha_2 FROM entries_countries
+                        SELECT target_country AS alpha_2 FROM entities_countries
                     ) a
                     JOIN countries USING (alpha_2)"""
     country_list = pd.read_sql(sql, con=engine)
@@ -55,9 +51,9 @@ network_metrics_header = [
 
 tooltip_header = {
     'Country': 'Country',
-    'Degree': 'Number of edges connected to it (How many countries a particular country has sanctioned or has been sanctioned by)',
-    'In-Degree': 'Number of incoming edges (How many countries are imposing sanctions on a particular country)',
-    'Out-Degree': "Number of outgoing edges (How many countries a particular country is sanctioning)",
+    'Degree': 'Relative Number of edges connected to it (How many countries a particular country has sanctioned or has been sanctioned by)',
+    'In-Degree': 'Relative Number of incoming edges (How many countries are imposing sanctions on a particular country)',
+    'Out-Degree': "Relative Number of outgoing edges (How many countries a particular country is sanctioning)",
     'Eigenvector': "A node's importance based on the importance of its neighbors. considers quantity & quality of connections (TODO, Not trivial)",
     'Closeness': "How close a node is to all other nodes in the network (How quickly a country can be reached, either directly or indirectly, in terms of imposing or facing sanctions)",
     'Betweenness': "How often a node lies on the shortest path between other nodes (High betweenness centrality indicates a crucial role in the flow of sanctions between other countries)",
@@ -88,9 +84,11 @@ app.layout = html.Div([
                 ]),
 
                 html.Br(),
-                html.H4("Number of Entries by Country"),
+                html.H4("Number of Entities by Country"),
+                html.P("How many sanctions (entities) have been imposed on this countries or are imposed by this country"),
                 dbc.Row(dcc.Graph(id="graph-sanctions-by-country")),
                 html.H4("Number of Entries by Date"),
+                html.P("On which date was the first occurrence of a sanctioned entities (first_seen) undergo a change (last_change) or experience the last change (last_seen)"),
                 dbc.Row(dcc.Graph(id="graph-sanctions-timeline")),
 
                 dbc.Row([
@@ -99,8 +97,14 @@ app.layout = html.Div([
                 ]),
 
                 dbc.Row([
-                    dbc.Col([dcc.Graph(id="graph-sanctions-industry")], lg=6),
+                    dbc.Col(html.P("Which type of entities (in or from a specific country) experience the most sanctions towards them"), lg=6),
+                    dbc.Col(html.P("Which company industries (in or from a specific country) experience the most sanctions towards them"), lg=6),
+                ]),
+
+
+                dbc.Row([
                     dbc.Col([dcc.Graph(id="graph-types")], lg=6),
+                    dbc.Col([dcc.Graph(id="graph-sanctions-industry")], lg=6),
                 ])
             ]),
 
@@ -109,7 +113,7 @@ app.layout = html.Div([
                 html.H4("Search"),
                 dbc.Row([
                     dbc.Col(dmc.TextInput(id="input-search-caption", type="text", placeholder="Query", debounce=True), width=12, lg=4),
-                    dbc.Col(dmc.Select(data=target_countries, id='dd-search-country', placeholder="Country", searchable=True), width=6, lg=3),
+                    dbc.Col(dmc.Select(data=[""] + target_countries, id='dd-search-country', placeholder="Country", searchable=True), width=6, lg=3),
                     dbc.Col(dmc.Select(data=schemas, id='dd-individ-schemas', placeholder="Schema", searchable=True), width=6, lg=2),
                     dbc.Col(dbc.Button("Search", id='btn-search-entity', color="light", className="me-1", n_clicks=0), width=6, lg=1),
                     dbc.Col(dbc.Button("Excel Export", color="primary", className="me-1", id="btn-export-individ", n_clicks=0), width=6, lg=2)
@@ -185,12 +189,12 @@ def update_graph(value):
      Input("dd-end-date", "value")]
 )
 def update_graph(mode, country, schema, industry, start_date, end_date):
-    plt1 = px.bar(pd.DataFrame({"Country": [], "Amount": []}), x="Country", y="Amount")
-    plt2 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
-    plt3 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
-    plt4 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
-
     if mode is None or country is None:
+        plt1 = px.bar(pd.DataFrame({"Country": [], "Amount": []}), x="Country", y="Amount")
+        plt2 = px.bar(pd.DataFrame({"Date": [], "Amount": []}), x="Date", y="Amount")
+        plt3 = px.bar(pd.DataFrame({"Schema": [], "Amount": []}), x="Schema", y="Amount")
+        plt4 = px.bar(pd.DataFrame({"Industry": [], "Amount": []}), x="Industry", y="Amount")
+
         return plt1, plt2, plt3, plt4
 
     df = generate_country_data(engine, mode, country, schema, industry, start_date, end_date)
@@ -223,18 +227,18 @@ def update_graph(mode, country, schema, industry, start_date, end_date):
      State("dd-search-country", "value"),
      Input("btn-search-entity", "n_clicks")],
     prevent_initial_call=True)
-def download(schema, query, country, _):
+def download(schema: str, query: str, country: str, _):
     if query is None or len(query.strip()) == 0:
         return []
 
     country_join = ""
     restriction = ["LOWER(caption) LIKE concat('%%', LOWER(%(query)s) ,'%%')"]
 
-    if schema is not None:
+    if schema is not None and schema.strip() != "":
         restriction.append("schema = %(schema)s")
 
-    if country is not None:
-        country_join = "JOIN (SELECT id FROM entries_countries WHERE source_country = %(country)s) ec USING (id)"
+    if country is not None and country.strip() != "":
+        country_join = "JOIN (SELECT id FROM entities_countries WHERE source_country = %(country)s) ec USING (id)"
 
     sql = f"""SELECT caption, country_descr, e.first_seen, e.last_seen, e.last_change, 
         STRING_AGG(CONCAT(d.title, CASE WHEN flag IS NULL THEN '' ELSE CONCAT(' (', flag, ')') END), '\n') AS datasets
@@ -244,7 +248,7 @@ def download(schema, query, country, _):
             {country_join}
             WHERE {" AND ".join(restriction)}
         ) e
-        LEFT JOIN (SELECT id, target_country FROM entries_countries) ec USING (id)
+        LEFT JOIN (SELECT id, target_country FROM entities_countries) ec USING (id)
         LEFT JOIN (SELECT alpha_2 AS target_country, description AS country_descr FROM countries) c USING (target_country)
         JOIN datasets d USING (name)
         LEFT JOIN (SELECT alpha_2, flag FROM countries) c2 ON (d.publisher->>'country' = c2.alpha_2)
@@ -286,7 +290,7 @@ def network(_, schema, industry, start_date, end_date, countries):
         conditions.append('first_seen > %(sd)s')
 
     if end_date is not None and end_date != "":
-        conditions.append('last_seen < %(ed)s')
+        conditions.append('first_seen < %(ed)s')
 
     if countries is not None and countries != "":
         countries = ", ".join(map(lambda x: f"'{x}'", countries))
@@ -295,13 +299,19 @@ def network(_, schema, industry, start_date, end_date, countries):
     condition = ' AND '.join(conditions)
 
     sql = f"""SELECT s.description AS source, t.description AS target, count(DISTINCT id) AS weight 
-    FROM entries_countries 
+    FROM entities_countries 
     JOIN countries s ON (s.alpha_2 = source_country) 
     JOIN countries t ON (t.alpha_2 = target_country)  
     WHERE {condition}
     GROUP BY 1, 2"""
 
     df = pd.read_sql(sql, params={"s": schema, "i": industry, "sd": start_date, "ed": end_date}, con=engine)
+
+    if len(df) == 0:
+        fig = px.scatter(title='No Data')
+        fig.update_layout(annotations=[
+            dict(x=0.5, y=0.5, xref="paper", yref="paper", text="No data", showarrow=False, font=dict(size=20), ) ] )
+        return fig, []
 
     graph = nx.from_pandas_edgelist(
         df, source="source", target="target", edge_attr=["weight"], create_using=nx.DiGraph())
@@ -333,4 +343,4 @@ def download(_, mode, country, schema, industry):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

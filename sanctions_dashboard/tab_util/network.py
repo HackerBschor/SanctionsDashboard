@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def plot_network(graph: nx.Graph):
-    pos = nx.spring_layout(graph, weight='weight')
+    pos = nx.kamada_kawai_layout(graph, weight='weight')
 
     weights = [d["weight"] for (_, _, d) in graph.edges(data=True)]
     min_weights = min(weights)
@@ -58,12 +58,16 @@ def get_centralities(graph: nx.Graph):
         "Degree": nx.degree_centrality(graph),
         "In-Degree": nx.in_degree_centrality(graph),
         "Out-Degree": nx.out_degree_centrality(graph),
-        "Eigenvector": nx.eigenvector_centrality(graph, weight="weight", max_iter=1000),
         "Closeness": nx.closeness_centrality(graph),
         "Betweenness": nx.betweenness_centrality(graph, weight="weight"),
         "Clustering": nx.clustering(graph, weight="weight"),
         "Pagerank": nx.pagerank(graph, weight="weight")
     }
+
+    try:
+        metrics["Eigenvector"] = nx.eigenvector_centrality(graph, weight="weight", max_iter=1000)
+    except nx.exception.PowerIterationFailedConvergence as ignored:
+        pass
 
     names = list(metrics.keys())
 
