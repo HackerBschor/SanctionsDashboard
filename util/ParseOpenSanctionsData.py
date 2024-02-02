@@ -1,4 +1,6 @@
 import json
+import sys
+
 import requests
 import datetime
 import psycopg2
@@ -39,13 +41,16 @@ def write_entities(file="../data/entities.ftm.json") -> None:
     conn.close()
 
 
-def download_datasets(sanctions_index: json) -> None:
+def download_datasets(index_file: str = "../data/index.json") -> None:
     """
     Downloads the datasource and saves it in the database
     :parameter sanctions_index: The index file of the OpenSanctions default dataset as JSON.
         Usually at https://data.opensanctions.org/datasets/<YYYMMDD>/default/index.json
     :return:
     """
+    with open(index_file, 'r') as f:
+        sanctions_index: json = json.load(f)
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -109,38 +114,30 @@ def create_country_relation_table():
     conn.close()
 
 
-def create_subset():
-    sql = """/*CREATE INDEX ON entities_datasets (schema);*/
-CREATE TABLE entities_datasets_small AS
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Address' ORDER BY random() LIMIT 1000) a0 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Airplane' ORDER BY random() LIMIT 1000) a1 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Associate' ORDER BY random() LIMIT 1000) a2 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'BankAccount' ORDER BY random() LIMIT 1000) a3 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Company' ORDER BY random() LIMIT 1000) a4 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'CryptoWallet' ORDER BY random() LIMIT 1000) a5 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Directorship' ORDER BY random() LIMIT 1000) a6 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Employment' ORDER BY random() LIMIT 1000) a7 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Family' ORDER BY random() LIMIT 1000) a8 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Identification' ORDER BY random() LIMIT 1000) a9 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'LegalEntity' ORDER BY random() LIMIT 1000) a10 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Membership' ORDER BY random() LIMIT 1000) a11 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Occupancy' ORDER BY random() LIMIT 1000) a12 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Organization' ORDER BY random() LIMIT 1000) a13 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Ownership' ORDER BY random() LIMIT 1000) a14 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Passport' ORDER BY random() LIMIT 1000) a15 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Person' ORDER BY random() LIMIT 1000) a16 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Position' ORDER BY random() LIMIT 1000) a17 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Representation' ORDER BY random() LIMIT 1000) a18 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Sanction' ORDER BY random() LIMIT 1000) a19 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Security' ORDER BY random() LIMIT 1000) a20 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'UnknownLink' ORDER BY random() LIMIT 1000) a21 UNION ALL
-SELECT * FROM (SELECT * FROM entities_datasets WHERE schema = 'Vessel' ORDER BY random() LIMIT 1000) a22"""
-
-
 if __name__ == '__main__':
-    # create_schema()
-    # with open("../data/index.json", "r") as f:
-    #    download_datasets(json.load(f))
-    # write_entities("../data/entities.ftm.json")
-    # create_country_relation_table()
-    pass
+    modes = ["create_schema", "download_datasets", "write_entities", "create_country_relation_table"]
+
+    if len(sys.argv) == 1:
+        exit(f"Please provide mode. \n Available modes {' '.join(modes)}")
+
+    mode = sys.argv[1]
+
+    file = None
+    if len(sys.argv) > 2:
+        file = sys.argv[2]
+
+    if sys.argv[1] == modes[0]:
+        create_schema()
+    elif sys.argv[1] == modes[1]:
+        if file is not None:
+            download_datasets(file)
+        else:
+            download_datasets()
+
+    elif sys.argv[1] == modes[2]:
+        if file is not None:
+            write_entities(file)
+        else:
+            write_entities()
+    else:
+        create_country_relation_table()
