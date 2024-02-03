@@ -185,7 +185,7 @@ app.layout = html.Div([
                 html.A("OpenSanctions", href="https://www.opensanctions.org/"),
                 " (Sanctions Information) and ",
                 html.A("People Data Labs", href="https://www.peopledatalabs.com/"),
-                """(Company Industries). We only applied various transformation techniques in order to allow the analysis
+                """ (Company Industries). We only applied various transformation techniques in order to allow the analysis
                 without changing the information. Therefore, we cannot ensure completeness, correctness, 
                 or if it is up-to-date.
                 """,
@@ -292,8 +292,7 @@ def network(schema, industry, start_date, end_date, countries, _):
 @callback(
     Output("download-graph", "data"),
     [State("dd-network-schemas", "value"),
-     State("dd-network-industries"
-           "", "value"),
+     State("dd-network-industries", "value"),
      State("dd-network-start-date", "value"),
      State("dd-network-end-date", "value"),
      State("dd-network-countries", "value"),

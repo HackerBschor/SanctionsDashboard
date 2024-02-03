@@ -16,7 +16,7 @@ def generate_country_data(mode, country, schema, industry, start_date, end_date,
         conditions.append("first_seen > %(sd)s")
 
     if end_date is not None and end_date.strip() != "":
-        conditions.append("first_seen > %(ed)s")
+        conditions.append("first_seen < %(ed)s")
 
     sql = f"""SELECT 
         id, caption, first_seen, schema, industry, t.description AS target, s.description AS source
