@@ -3,23 +3,16 @@ import sys
 
 import requests
 import datetime
-import psycopg2
 from colorama import Fore, Style
 
-from DB import get_connection, create_schema
+from DB import get_connection
 
 
-def write_entities(file="../data/entities.ftm.json") -> None:
-    """
-    Inserts an OpenSanctions Default Dataset (https://www.opensanctions.org/datasets/default/) into the database.
-    The dataset has to be in the FollowTheMoney format (entities.ftm.json).
-    :return:
-    """
+def write_entities(input_file: str) -> None:
     conn = get_connection()
     cursor = conn.cursor()
-    schemas = {" "}
 
-    with open(file, 'r', encoding="UTF-8") as fd:
+    with open(input_file, 'r', encoding="UTF-8") as fd:
         for count, entity in enumerate(fd):
             print("\rLine: ", count, end="")
 
@@ -35,20 +28,12 @@ def write_entities(file="../data/entities.ftm.json") -> None:
                  json.dumps(entity['referents']), json.dumps(entity['datasets']), entity['first_seen'],
                  entity['last_seen'], entity['last_change'], entity['target']))
 
-            schemas.add(entity['schema'])
-
     conn.commit()
     conn.close()
 
 
-def download_datasets(index_file: str = "../data/index.json") -> None:
-    """
-    Downloads the datasource and saves it in the database
-    :parameter sanctions_index: The index file of the OpenSanctions default dataset as JSON.
-        Usually at https://data.opensanctions.org/datasets/<YYYMMDD>/default/index.json
-    :return:
-    """
-    with open(index_file, 'r') as f:
+def download_datasets(input_file: str) -> None:
+    with open(input_file, 'r') as f:
         sanctions_index: json = json.load(f)
 
     conn = get_connection()
@@ -57,7 +42,7 @@ def download_datasets(index_file: str = "../data/index.json") -> None:
     for name in sanctions_index["datasets"]:
         print("Saving dataset: ", name, end=" ")
 
-        data = download_dataset(datetime.date.today(), name)
+        data: json = download_dataset(datetime.date.today(), name)
 
         if data is not None:
             cursor.execute(
@@ -73,16 +58,12 @@ def download_datasets(index_file: str = "../data/index.json") -> None:
     conn.close()
 
 
-def download_dataset(date, name, retries=100) -> json:
-    """
-    Downloads the datasource and saves it in the database
-    :parameter:
-    :return: JSON
-    """
+def download_dataset(date: datetime.datetime, name: str, retries: int = 100) -> json:
     if retries < 0:
         return None
 
-    response = requests.get(f"https://data.opensanctions.org/datasets/{date.strftime('%Y%m%d')}/{name}/index.json")
+    url: str = f"https://data.opensanctions.org/datasets/{date.strftime('%Y%m%d')}/{name}/index.json"
+    response: requests.Response = requests.get(url)
 
     if response.status_code == 200:
         return response.json()
@@ -90,31 +71,7 @@ def download_dataset(date, name, retries=100) -> json:
         return download_dataset(date - datetime.timedelta(days=1), name, retries - 1)
 
 
-def create_country_relation_table():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    sql = """
-        INSERT INTO entities_countries (id, caption, schema, target_country, source_country, first_seen, last_seen, last_change, target)
-        
-        SELECT * FROM (
-            SELECT DISTINCT id, caption, schema,
-                json_array_elements_text(COALESCE(properties->'country', properties->'jurisdiction')) AS target_country,
-                publisher->>'country' as source_country,
-                first_seen, last_seen, last_change, target
-            FROM (
-                SELECT id, caption, schema, first_seen, last_seen, last_change, target, properties, json_array_elements_text(datasets) AS name
-                FROM entities
-            ) e
-            JOIN (SELECT * FROM datasets WHERE type <> 'external') d USING (name)
-        ) f WHERE source_country IS NOT NULL AND target_country IS NOT NULL"""
-
-    cursor.execute(sql)
-    conn.commit()
-    conn.close()
-
-
-def extract_schemas(output_file):
+def extract_schemas(output_file: str):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -129,33 +86,17 @@ def extract_schemas(output_file):
 
 
 if __name__ == '__main__':
-    modes = ["create_schema", "download_datasets", "write_entities", "create_country_relation_table", "extract_schemas"]
+    modes: list[tuple] = [
+        ("download_datasets", download_datasets, "<input: path to index.json>"),
+        ("write_entities", write_entities, "<input: path to entities.ftm.json>"),
+        ("extract_schemas", extract_schemas, "<output: path to schemas.txt>")
+    ]
 
-    if len(sys.argv) == 1:
-        exit(f"Please provide mode. \n Available modes {' '.join(modes)}")
+    if len(sys.argv) != 3 or sys.argv[1] not in list(map(lambda x: x[0], modes)):
+        msg = "Please provide mode and input/ output file. \nAvailable modes: "
+        msg += ';'.join(map(lambda x: x[0] + ' ' + x[2], modes))
+        exit(msg)
 
-    mode = sys.argv[1]
-
-    file = None
-    if len(sys.argv) > 2:
-        file = sys.argv[2]
-
-    if sys.argv[1] == modes[0]:
-        create_schema()
-    elif sys.argv[1] == modes[1]:
-        if file is not None:
-            download_datasets(file)
-        else:
-            download_datasets()
-
-    elif sys.argv[1] == modes[2]:
-        if file is not None:
-            write_entities(file)
-        else:
-            write_entities()
-    elif sys.argv[1] == "create_country_relation_table":
-        create_country_relation_table()
-    elif sys.argv[1] == "extract_schemas":
-        extract_schemas(sys.argv[2])
-    else:
-        exit(f"Please provide mode valid mode. \n Available modes: {', '.join(modes)}")
+    for mode in modes:
+        if sys.argv[1] == mode[0]:
+            mode[1](sys.argv[2])

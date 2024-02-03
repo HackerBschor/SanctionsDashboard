@@ -3,19 +3,12 @@ import sys
 import psycopg2
 
 
-def get_connection(host="localhost", database="sanctions", user="sanctions", password="sanctions"):
-    """
-    Creates connection to database
-    :return: postgresql connection
-    """
+def get_connection(host: str = "localhost", database: str = "sanctions", user: str = "sanctions",
+                   password: str = "sanctions"):
     return psycopg2.connect(host=host, database=database, user=user, password=password)
 
 
-def execute_insert_update_query(sql) -> None:
-    """
-    Executes SQL query
-    :return:
-    """
+def execute_insert_update_query(sql: str) -> None:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(sql)

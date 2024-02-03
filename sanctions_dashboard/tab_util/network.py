@@ -3,10 +3,12 @@ import plotly.graph_objs as go
 import networkx as nx
 import plotly.express as px
 import pandas as pd
+from sqlalchemy import Engine
 
 
-def build_edge_list(schema, industry, start_date, end_date, countries, engine):
-    conditions = ["source_country != target_country"]
+def build_edge_list(schema: str, industry: str, start_date: str, end_date: str, countries: str, engine: Engine
+                    ) -> pd.DataFrame:
+    conditions: list[str] = ["source_country != target_country"]
 
     if schema is not None and schema != "":
         conditions.append('schema = %(s)s')
@@ -24,9 +26,9 @@ def build_edge_list(schema, industry, start_date, end_date, countries, engine):
         countries = ", ".join(map(lambda x: f"'{x}'", countries))
         conditions.append(f'source_country IN ({countries}) AND target_country IN ({countries})')
 
-    condition = ' AND '.join(conditions)
+    condition: str = ' AND '.join(conditions)
 
-    sql = f"""SELECT s.description AS source, t.description AS target, count(DISTINCT id) AS weight 
+    sql: str = f"""SELECT s.description AS source, t.description AS target, count(DISTINCT id) AS weight 
     FROM entities_countries 
     JOIN countries s ON (s.alpha_2 = source_country) 
     JOIN countries t ON (t.alpha_2 = target_country)  
@@ -36,13 +38,15 @@ def build_edge_list(schema, industry, start_date, end_date, countries, engine):
     return pd.read_sql(sql, params={"s": schema, "i": industry, "sd": start_date, "ed": end_date}, con=engine)
 
 
-def build_graph(df):
-    graph = nx.DiGraph()
-    graph = nx.from_pandas_edgelist(df, source="source", target="target", edge_attr=["weight"], create_using=graph)
+def build_graph(df) -> nx.DiGraph:
+    graph: nx.DiGraph = nx.DiGraph()
+    graph: nx.DiGraph = nx.from_pandas_edgelist(df, source="source", target="target", edge_attr=["weight"],
+                                                create_using=graph)
     return graph
 
 
-def build_output(schema, industry, start_date, end_date, countries, engine):
+def build_output(schema: str, industry: str, start_date: str, end_date: str, countries: str, engine: Engine
+                 ) -> (go.Figure, pd.DataFrame):
     df = build_edge_list(schema, industry, start_date, end_date, countries, engine)
     graph = build_graph(df)
 
@@ -52,35 +56,35 @@ def build_output(schema, industry, start_date, end_date, countries, engine):
             dict(x=0.5, y=0.5, xref="paper", yref="paper", text="No data", showarrow=False, font=dict(size=20), )])
         return fig, []
 
-    print(graph)
-
-    return plot_network(graph), get_centralities(graph).to_dict("records")
+    return plot_network(graph), get_centralises(graph).to_dict("records")
 
 
-def plot_network(graph: nx.Graph):
-    pos = nx.kamada_kawai_layout(graph, weight='weight')
+def plot_network(graph: nx.Graph) -> go.Figure:
+    pos: dict = nx.kamada_kawai_layout(graph, weight='weight')
 
-    weights = [d["weight"] for (_, _, d) in graph.edges(data=True)]
-    min_weights = min(weights)
-    max_weights = max(weights)
+    weights: list[float] = [d["weight"] for (_, _, d) in graph.edges(data=True)]
+    min_weights: float = min(weights)
+    max_weights: float = max(weights)
 
-    nodes_x, nodes_y, nodes_color, nodes_text = [], [], [], []
-    annotations = []
+    nodes_x: list[float] = []
+    nodes_y: list[float] = []
+    nodes_color: list[float] = []
+    nodes_text: list[str] = []
+    annotations: list[go.Scatter] = []
 
     for node, adj in graph.adjacency():
         nodes_x.append(pos[node][0])
         nodes_y.append(pos[node][1])
 
-        weights = 0
-        scs = []
+        total_weights: float = 0
         for edge in adj:
-            weight = adj[edge]["weight"]
-            weights += weight
+            weight: float = adj[edge]["weight"]
+            total_weights += weight
 
             try:
-                weight_norm = (weight - min_weights) / (max_weights - min_weights)
+                weight_norm: float = (weight - min_weights) / (max_weights - min_weights)
             except ZeroDivisionError as _:
-                weight_norm = 0
+                weight_norm: float = 0
 
             annotations.append(go.Scatter(x=[pos[node][0], pos[edge][0]], y=[pos[node][1], pos[edge][1]],
                                           hoverinfo='skip',
@@ -88,10 +92,8 @@ def plot_network(graph: nx.Graph):
                                                   "symbol": "arrow-bar-up", "angleref": "previous",
                                                   "color": "rgba(0,0,0,.5)"}))
 
-            scs.append(edge)
-
-        nodes_color.append(weights)
-        nodes_text.append(f"{node} is sanctioning {weights} entities ({len(adj)} Countries)")
+        nodes_color.append(total_weights)
+        nodes_text.append(f"{node} is sanctioning {total_weights} entities ({len(adj)} Countries)")
 
     node_trace = go.Scatter(x=nodes_x, y=nodes_y, text=nodes_text, mode='markers', hoverinfo='text', opacity=0.5,
                             marker={
@@ -100,16 +102,16 @@ def plot_network(graph: nx.Graph):
                                                          "xanchor": 'left', "titleside": 'right'}, "line": {"width": 0}
                             })
 
-    ticks = {"showgrid": True, "zeroline": True, "showticklabels": False}
+    ticks: dict = {"showgrid": True, "zeroline": True, "showticklabels": False}
 
-    fig = go.Figure(data=annotations + [node_trace], layout=go.Layout(
+    fig: go.Figure = go.Figure(data=annotations + [node_trace], layout=go.Layout(
                          titlefont={"size": 16}, showlegend=False, hovermode='closest',
                          margin={"b": 20, "l": 5, "r": 5, "t": 40}, xaxis=ticks, yaxis=ticks))
     return fig
 
 
-def get_centralities(graph: nx.Graph):
-    metrics = {
+def get_centralises(graph: nx.Graph) -> pd.DataFrame:
+    metrics: dict = {
         "Degree": nx.degree_centrality(graph),
         "In-Degree": nx.in_degree_centrality(graph),
         "Out-Degree": nx.out_degree_centrality(graph),
@@ -119,18 +121,18 @@ def get_centralities(graph: nx.Graph):
         "Pagerank": nx.pagerank(graph, weight="weight")
     }
 
-    names = list(metrics.keys())
+    metric_names: list[str] = list(metrics.keys())
+    data: list[list[float]] = []
 
-    data = []
+    for country in sorted(graph.nodes, reverse=True):
+        row = [country]
 
-    for key in sorted(graph.nodes, reverse=True):
-        row = [key]
-        for metric in names:
-            if key in metrics[metric]:
-                row.append(np.array(metrics[metric][key]).round(2))
+        for metric in metric_names:
+            if country in metrics[metric]:
+                row.append(np.array(metrics[metric][country]).round(2))
             else:
                 row.append(None)
 
         data.append(row)
 
-    return pd.DataFrame(data, columns=["Country"] + names)
+    return pd.DataFrame(data, columns=["Country"] + metric_names)

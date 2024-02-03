@@ -6,9 +6,8 @@ import numpy as np
 from DB import get_connection
 
 
-def parser_company_set_data(input_file):
-    df = pd.read_csv(input_file)
-    df = df.replace({np.nan: None})
+def parser_company_set_data(input_file: str):
+    df: pd.DataFrame = pd.read_csv(input_file).replace({np.nan: None})
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -16,7 +15,7 @@ def parser_company_set_data(input_file):
     for i, (idx, row) in enumerate(df.iterrows()):
         print(f"\r{float(i) / float(len(df))}", end="")
 
-        year_founded = None if row['year founded'] is None else int(row['year founded'])
+        year_founded: int = None if row['year founded'] is None else int(row['year founded'])
 
         cursor.execute(
             '''INSERT INTO companies (
@@ -31,7 +30,7 @@ def parser_company_set_data(input_file):
     conn.close()
 
 
-def extract_industries(output_file):
+def extract_industries(output_file: str):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -46,18 +45,16 @@ def extract_industries(output_file):
 
 
 if __name__ == '__main__':
-    modes = ["parser_company_set_data", "extract_industries"]
+    modes = [
+        ("parser_company_set_data", parser_company_set_data, "<input: path to companies_sorted.csv>"),
+        ("extract_industries", extract_industries, "<output: path to industries.txt>")
+    ]
 
-    if len(sys.argv) == 1:
-        exit(f"Please provide mode. \n Available modes: {', '.join(modes)}")
-    if len(sys.argv) == 2:
-        exit(f"Please provide input/output file")
+    if len(sys.argv) != 3 or sys.argv[1] not in list(map(lambda x: x[0], modes)):
+        msg = "Please provide mode and input/ output file. \nAvailable modes: "
+        msg += ';'.join(map(lambda x: x[0] + ' ' + x[2], modes))
+        exit(msg)
 
-    mode, file = sys.argv[1], sys.argv[2]
-
-    if mode == "parser_company_set_data":
-        parser_company_set_data(file)
-    elif mode == "extract_industries":
-        extract_industries(file)
-    else:
-        exit(f"Please provide mode valid mode. \n Available modes: {', '.join(modes)}")
+    for mode in modes:
+        if sys.argv[1] == mode[0]:
+            mode[1](sys.argv[2])
