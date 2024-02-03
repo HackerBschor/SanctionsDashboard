@@ -7,8 +7,8 @@ from dash import Dash, html, dcc, callback, Output, Input, dash_table, State
 from sqlalchemy import create_engine
 from datetime import date
 
-from sanctions_dashboard.tab_util.network import plot_network, get_centralities
-from sanctions_dashboard.tab_util.sanctions_by_country import generate_country_data
+from tab_util.network import plot_network, get_centralities
+from tab_util.sanctions_by_country import generate_country_data
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -343,4 +343,4 @@ def download(_, mode, country, schema, industry):
 
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=False, host="0.0.0.0", port=3000)

@@ -114,8 +114,22 @@ def create_country_relation_table():
     conn.close()
 
 
+def extract_schemas(output_file):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT schema FROM entities")
+
+    with open(output_file, "w") as f:
+        f.write("\n")
+        for row in cursor.fetchall():
+            f.write(f"{row[0]}\n")
+
+    conn.close()
+
+
 if __name__ == '__main__':
-    modes = ["create_schema", "download_datasets", "write_entities", "create_country_relation_table"]
+    modes = ["create_schema", "download_datasets", "write_entities", "create_country_relation_table", "extract_schemas"]
 
     if len(sys.argv) == 1:
         exit(f"Please provide mode. \n Available modes {' '.join(modes)}")
@@ -139,5 +153,9 @@ if __name__ == '__main__':
             write_entities(file)
         else:
             write_entities()
-    else:
+    elif sys.argv[1] == "create_country_relation_table":
         create_country_relation_table()
+    elif sys.argv[1] == "extract_schemas":
+        extract_schemas(sys.argv[2])
+    else:
+        exit(f"Please provide mode valid mode. \n Available modes: {', '.join(modes)}")

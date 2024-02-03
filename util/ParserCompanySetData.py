@@ -5,13 +5,9 @@ import numpy as np
 
 from DB import get_connection
 
-if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        file = "../data/companies_sorted.csv"
-    else:
-        file = sys.argv[1]
 
-    df = pd.read_csv(file)
+def parser_company_set_data(input_file):
+    df = pd.read_csv(input_file)
     df = df.replace({np.nan: None})
 
     conn = get_connection()
@@ -33,3 +29,35 @@ if __name__ == '__main__':
 
     conn.commit()
     conn.close()
+
+
+def extract_industries(output_file):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT DISTINCT industry FROM companies")
+
+    with open(output_file, "w") as f:
+        f.write("\n")
+        for row in cursor.fetchall():
+            f.write(f"{row[0]}\n")
+
+    conn.close()
+
+
+if __name__ == '__main__':
+    modes = ["parser_company_set_data", "extract_industries"]
+
+    if len(sys.argv) == 1:
+        exit(f"Please provide mode. \n Available modes: {', '.join(modes)}")
+    if len(sys.argv) == 2:
+        exit(f"Please provide input/output file")
+
+    mode, file = sys.argv[1], sys.argv[2]
+
+    if mode == "parser_company_set_data":
+        parser_company_set_data(file)
+    elif mode == "extract_industries":
+        extract_industries(file)
+    else:
+        exit(f"Please provide mode valid mode. \n Available modes: {', '.join(modes)}")
