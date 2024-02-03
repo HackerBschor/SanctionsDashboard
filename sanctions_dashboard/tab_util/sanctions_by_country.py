@@ -18,7 +18,7 @@ def generate_country_data(engine, mode, country, schema, industry, start_date, e
         conditions.append("first_seen > %(ed)s")
 
     sql = f"""SELECT 
-        id, caption, first_seen, last_change, last_seen, schema, industry, t.description AS target, s.description AS source
+        id, caption, first_seen, schema, industry, t.description AS target, s.description AS source
     FROM entities_countries 
     JOIN countries t ON (t.alpha_2 = target_country) 
     JOIN countries s ON (s.alpha_2 = source_country)

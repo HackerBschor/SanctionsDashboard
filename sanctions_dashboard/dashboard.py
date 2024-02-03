@@ -88,7 +88,7 @@ app.layout = html.Div([
                 html.P("How many sanctions (entities) have been imposed on this countries or are imposed by this country"),
                 dbc.Row(dcc.Graph(id="graph-sanctions-by-country")),
                 html.H4("Number of Entries by Date"),
-                html.P("On which date was the first occurrence of a sanctioned entities (first_seen) undergo a change (last_change) or experience the last change (last_seen)"),
+                html.P("On which date the entity occurred on one of the sanctions datasets"),
                 dbc.Row(dcc.Graph(id="graph-sanctions-timeline")),
 
                 dbc.Row([
@@ -205,7 +205,7 @@ def update_graph(mode, country, schema, industry, start_date, end_date):
 
     df_melt = pd.melt(
         df.rename(columns={"first_seen": "First Seen", "last_seen": "Last Seen", "last_change": "Last Change"}),
-        id_vars=('id',), value_vars=['First Seen', 'Last Seen', 'Last Change'], var_name="value", value_name="date")
+        id_vars=('id',), value_vars=['First Seen'], var_name="value", value_name="date")
 
     df_melt["date"] = pd.to_datetime(df_melt["date"])
     df_melt["date"] = df_melt["date"].dt.date
