@@ -11,8 +11,8 @@ from [People Data Labs](https://www.peopledatalabs.com/) is joined in order to i
 
 * Install [PostgreSQL](https://www.postgresql.org/) & [Python](https://www.python.org/)
 * Download Files into a `data` folder (replace &lt;YYYYMMDD> with the current data)
-  * https://data.opensanctions.org/datasets/&lt;YYYYMMDD>/default/index.json
-  * https://data.opensanctions.org/datasets/&lt;YYYYMMDD>/default/entities.ftm.json
+  * https://data.opensanctions.org/datasets/<YYYYMMDD>/default/index.json
+  * https://data.opensanctions.org/datasets/<YYYYMMDD>/default/entities.ftm.json
   * https://www.kaggle.com/datasets/peopledatalabssf/free-7-million-company-dataset
 * create virtual env and install the requirements
   ```bash 
