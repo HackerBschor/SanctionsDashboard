@@ -1,30 +1,30 @@
 import sys
-
-import pandas as pd
-import numpy as np
+import csv
+from io import StringIO
 
 from DB import get_connection
 
 
 def parser_company_set_data(input_file: str):
-    df: pd.DataFrame = pd.read_csv(input_file).replace({np.nan: None})
-
     conn = get_connection()
     cursor = conn.cursor()
 
-    for i, (idx, row) in enumerate(df.iterrows()):
-        print(f"\r{float(i) / float(len(df))}", end="")
+    with open(input_file, encoding="UTF-8") as f:
+        for i, line in enumerate(f):
+            print(f"\r{float(i)}", end="")
+            if i == 0:
+                continue
 
-        year_founded: int = None if row['year founded'] is None else int(row['year founded'])
+            row = next(csv.reader(StringIO(line)))
+            row = [(None if value == "" else value) for value in row]
+            row[3] = None if row[3] is None else int(float(row[3]))
 
-        cursor.execute(
-            '''INSERT INTO companies (
-                id, name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
-                current_employee_estimate, total_employee_estimate
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-            (i, row['name'], row['domain'], year_founded, row['industry'],
-             row['size range'], row['locality'], row['country'], row['linkedin url'],
-             row['current employee estimate'], row['total employee estimate']))
+            cursor.execute(
+                '''INSERT INTO companies (
+                    id, name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
+                    current_employee_estimate, total_employee_estimate
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                (i, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]))
 
     conn.commit()
     conn.close()
