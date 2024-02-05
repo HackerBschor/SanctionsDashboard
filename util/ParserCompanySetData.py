@@ -15,16 +15,20 @@ def parser_company_set_data(input_file: str):
             if i == 0:
                 continue
 
-            row = next(csv.reader(StringIO(line)))
-            row = [(None if value == "" else value) for value in row]
-            row[3] = None if row[3] is None else int(float(row[3]))
+            try:
+                row = next(csv.reader(StringIO(line)))
+                row = [(None if value == "" else value) for value in row]
+                row[3] = None if row[3] is None else int(float(row[3]))
 
-            cursor.execute(
-                '''INSERT INTO companies (
-                    id, name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
-                    current_employee_estimate, total_employee_estimate
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-                (i, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]))
+                cursor.execute(
+                    '''INSERT INTO companies (
+                        id, name, domain, year_founded, industry, size_range, locality, country, linkedin_url, 
+                        current_employee_estimate, total_employee_estimate
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                    (i, row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]))
+
+            except:
+                print("ERROR:", line, "\n")
 
     conn.commit()
     conn.close()
