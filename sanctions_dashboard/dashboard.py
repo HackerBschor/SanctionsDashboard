@@ -177,27 +177,23 @@ def create_app():
                 html.H3("Sanctions Dashboard"),
                 html.H5(["Find the Project on ", html.A("GitHub", href="https://github.com/HackerBschor/SanctionsDashboard")]),
                 html.H5("Disclaimer"),
-                html.P([
-                    "This dashboard was created by TU Vienna student ",
-                    html.A("Nicolas Bschor", href="https://github.com/HackerBschor"),
-                    " in collaboration with WU Vienna Professor ",
-                    html.A("Dr. Jakob Müllner", href="https://www.wu.ac.at/iib/iib/faculty/muellner/"),
-                    " during the 'Interdisciplinary Project in Data Science' course.",
-                    html.Br(),
-                    "The data used in this dashboard is sourced from ",
-                    html.A("OpenSanctions", href="https://www.opensanctions.org/"),
-                    " (Sanctions Information) and ",
-                    html.A("People Data Labs", href="https://www.peopledatalabs.com/"),
-                    """ (Company Industries). We only applied various transformation techniques in order to allow the analysis
-                    without changing the information. Therefore, we cannot ensure completeness, correctness, 
-                    or if the data is up-to-date.
-                    """,
-                    html.Br(),
-                    """
-                    Users are advised to verify information independently, 
-                    and the developers assume no responsibility for the consequences of its use. 
-                    Use the dashboard at your own risk."""
-                ])
+                dcc.Markdown("""
+                This dashboard was created by TU Vienna student
+                [Nicolas Bschor](https://github.com/HackerBschor) in collaboration with WU Vienna Professor 
+                [Dr. Jakob Müllner](https://www.wu.ac.at/iib/iib/faculty/muellner/) during the 'Interdisciplinary 
+                Project in Data Science' course for academic research of sanctions.
+                
+                It may only be used for **non-commercial purposes**!
+                
+                The data used in this dashboard is sourced from [OpenSanctions](https://www.opensanctions.org/) 
+                (Sanctions Information) and 
+                [People Data Labs](https://www.peopledatalabs.com/) (Company Industries).
+                
+                We only applied various transformation techniques to allow the analysis without changing the information.
+                Therefore, we cannot ensure completeness, correctness, or if the data is up to date.
+                Users are advised to verify information independently, and the developers assume no responsibility for 
+                the consequences of its use. Use the dashboard at your own risk.
+                """)
             ])
         ], fluid=True),
 
