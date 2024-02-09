@@ -60,7 +60,7 @@ def build_output(schema: str, industry: str, start_date: str, end_date: str, cou
 
 
 def plot_network(graph: nx.Graph) -> go.Figure:
-    pos: dict = nx.kamada_kawai_layout(graph, weight='weight')
+    pos: dict = nx.spring_layout(graph, weight='weight')
 
     weights: list[float] = [d["weight"] for (_, _, d) in graph.edges(data=True)]
     min_weights: float = min(weights)

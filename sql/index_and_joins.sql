@@ -1,13 +1,3 @@
-/* Indexes */
-CREATE INDEX ON entities(LOWER(caption));
-CREATE INDEX ON companies(LOWER(name));
-CREATE INDEX ON entities(id);
-CREATE INDEX ON entities_countries(id);
-
-CREATE INDEX ON entities(LOWER(caption));
-CREATE INDEX ON entities(schema);
-CREATE INDEX ON entities_countries(source_country);
-
 /* Join Industries */
 UPDATE entities e SET industry = c.industry
 FROM entities e1
@@ -29,3 +19,23 @@ SELECT * FROM (
     ) e
     JOIN (SELECT * FROM datasets WHERE type <> 'external') d USING (name)
 ) f WHERE source_country IS NOT NULL AND target_country IS NOT NULL
+
+/* create index on newly created tables */
+CREATE INDEX ON countries(alpha_2);
+CREATE INDEX ON datasets(name);
+CREATE INDEX ON entities(id);
+CREATE INDEX ON entities(caption);
+CREATE INDEX ON entities(lower(caption));
+CREATE INDEX ON entities(schema);
+CREATE INDEX ON entities(target);
+CREATE INDEX ON entities(industry);
+CREATE INDEX ON entities(first_seen);
+CREATE INDEX ON entities_countries(id);
+CREATE INDEX ON entities_countries(caption);
+CREATE INDEX ON entities_countries(lower(caption));
+CREATE INDEX ON entities_countries(schema);
+CREATE INDEX ON entities_countries(target);
+CREATE INDEX ON entities_countries(industry);
+CREATE INDEX ON entities_countries(first_seen);
+CREATE INDEX ON entities_countries(source_country);
+CREATE INDEX ON entities_countries(target_country);
