@@ -76,8 +76,10 @@ This dashboard was created by TU Vienna student [Nicolas Bschor](https://github.
 with WU Vienna Professor [Dr. Jakob Müllner](https://www.wu.ac.at/iib/iib/faculty/muellner/) during the 
 'Interdisciplinary Project in Data Science' course for academic research of sanctions.
 
+It may only be used for **non-commercial purposes**!
+
 The data used in this dashboard is sourced from [OpenSanctions](https://www.opensanctions.org/) (Sanctions Information) 
-and [People Data Labs](https://www.peopledatalabs.com/) (Company Industries) and for **non-commercial use only**.
+and [People Data Labs](https://www.peopledatalabs.com/) (Company Industries).
 
 
 We only applied various transformation techniques to allow the analysis without changing the information. 
