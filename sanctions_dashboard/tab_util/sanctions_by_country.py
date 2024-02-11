@@ -51,15 +51,10 @@ def create_graphs(mode: str, country: str, schema: str, industry: str, start_dat
     df1: pd.DataFrame = df.groupby(col)["id"].nunique().reset_index().sort_values(by="id")
     plt1: go.Figure = px.bar(df1, x=col, y="id", labels={"id": "Amount", col: "Country"})
 
-    df_melt: pd.DataFrame = pd.melt(
-        df.rename(columns={"first_seen": "First Seen", "last_seen": "Last Seen", "last_change": "Last Change"}),
-        id_vars=('id',), value_vars=['First Seen'], var_name="value", value_name="date")
+    df2: pd.DataFrame = df.groupby("first_seen")["id"].count().sort_index().reset_index()\
+        .rename(columns={"first_seen": "First Seen", "id": "# Entries"})
 
-    df_melt["date"] = pd.to_datetime(df_melt["date"])
-    df_melt["date"] = df_melt["date"].dt.date
-    df_melt: pd.DataFrame = df_melt.groupby(["value", "date"])[("id",)].nunique().reset_index()
-
-    plt2: go.Figure = px.line(df_melt, x="date", y="id", color="value", labels={"id": "Amount", "date": "Date", "value": "Type"})
+    plt2: go.Figure = px.line(df2, x="First Seen", y="# Entries")
 
     plt3: go.Figure = px.bar(df["schema"].value_counts().sort_values(), labels={"value": "Count", "schema": "Schema"})
 
